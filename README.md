@@ -1,5 +1,5 @@
 `npm i`
 
-`gulp dev`
+`npm run dev`
 
-`gulp build`
+`npm run build`

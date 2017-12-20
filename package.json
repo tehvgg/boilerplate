@@ -1,26 +1,42 @@
 {
-  "name": "sample",
-  "version": "0.0.1",
-  "description": "",
-  "keywords": [],
-  "devDependencies": {
-    "babel-preset-env": "^1.6.1",
-    "babel-register": "^6.26.0",
-    "babelify": "^8.0.0",
-    "browser-sync": "^2.18.13",
-    "browserify": "^14.5.0",
-    "del": "^3.0.0",
-    "gulp": "github:gulpjs/gulp#4.0",
-    "gulp-concat-css": "^2.3.0",
-    "gulp-rename": "^1.2.2",
-    "gulp-sass": "^3.1.0",
-    "gulp-sourcemaps": "^2.6.1",
-    "gulp-template": "^4.0.0",
-    "gulp-uglify": "^3.0.0",
-    "gulp-util": "^3.0.8",
-    "merge-stream": "^1.0.1",
-    "vinyl-buffer": "^1.0.0",
-    "vinyl-source-stream": "^1.1.0",
-    "watchify": "^3.9.0"
-  }
+	"name": "boilerplate",
+	"version": "0.0.1",
+	"description": "Personal application boilerplate.",
+	"license": "MIT",
+	"bugs": "https://github.com/tehvgg/boilerplate/issues",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/tehvgg/boilerplate.git"
+	},
+	"devDependencies": {
+		"babel-preset-env": "^1.6.1",
+		"babel-register": "^6.26.0",
+		"babelify": "^8.0.0",
+		"browser-sync": "^2.18.13",
+		"browserify": "^14.5.0",
+		"cross-env": "^5.1.1",
+		"del": "^3.0.0",
+		"gulp": "github:gulpjs/gulp#4.0",
+		"gulp-autoprefixer": "^4.0.0",
+		"gulp-clean-css": "^3.9.0",
+		"gulp-rename": "^1.2.2",
+		"gulp-sass": "^3.1.0",
+		"gulp-sourcemaps": "^2.6.1",
+		"gulp-template": "^4.0.0",
+		"gulp-util": "^3.0.8",
+		"sass-module-importer": "^1.4.0",
+		"tinyify": "^2.4.0",
+		"vinyl-buffer": "^1.0.0",
+		"vinyl-source-stream": "^1.1.0",
+		"watchify": "^3.9.0"
+	},
+	"scripts": {
+		"dev": "cross-env NODE_ENV=development gulp",
+		"build": "cross-env NODE_ENV=production gulp build"
+	},
+	"browserslist": ["last 2 versions"],
+	"engines": {
+		"node": ">= 6.9.0"
+	},
+	"private": true
 }

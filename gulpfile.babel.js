@@ -1,21 +1,20 @@
-import gulp from "gulp";
-import uglify from "gulp-uglify";
-import sourcemaps from "gulp-sourcemaps";
-import sass from "gulp-sass";
-import concatCSS from "gulp-concat-css";
-import gutil from "gulp-util";
-import template from "gulp-template";
-import rename from "gulp-rename";
+import gulp from 'gulp';
+import sourcemaps from 'gulp-sourcemaps';
+import sass from 'gulp-sass';
+import cleanCSS from 'gulp-clean-css';
+import autoprefixer from 'gulp-autoprefixer';
+import gutil from 'gulp-util';
+import template from 'gulp-template';
+import rename from 'gulp-rename';
 
-import browserify from "browserify";
-import babelify from "babelify";
-import watchify from "watchify";
+import browserify from 'browserify';
+import watchify from 'watchify';
 
-import source from "vinyl-source-stream";
-import buffer from "vinyl-buffer";
+import source from 'vinyl-source-stream';
+import buffer from 'vinyl-buffer';
 
-import browserSync from "browser-sync";
-import del from "del";
+import browserSync from 'browser-sync';
+import del from 'del';
 
 //////////////////////////////////////////////////////////////
 // UTILS
@@ -26,122 +25,153 @@ function log (color, ...text) {
 }
 
 function watch (sourceFiles, gulpTasks) {
-	gulp.watch(sourceFiles, gulpTasks).on("error", () => {});
+	gulp.watch(sourceFiles, gulpTasks).on('error', () => null);
 }
 
 // return the string contents of a file, or undefined if there was an error reading the file
-function getFile (path) {
-	try {
-		return fs.readFileSync(path, { encoding: "utf-8" });
-	} catch (error) {
-		log("yellow", `File '${path}' was not found. Returning 'undefined'.`);
-		return undefined;
+function getFile (path, cb) {
+	const logErr = () => log('yellow', `File '${path}' was not found. Returning 'undefined'.`);
+	if (cb) {
+		fs.readFile(path, (err, data) => cb(err ? logErr() : data));
+	} else {
+		try { return fs.readFileSync(path, { encoding: 'utf-8' }); } catch (err) { return logErr(); }
 	}
-}
-
-// return JSON read from a file
-function readJSON (path) {
-	let file = getFile(path);
-	return file ? JSON.parse(file) : {};
 }
 
 //////////////////////////////////////////////////////////////
 // CONSTANTS
 //////////////////////////////////////////////////////////////
 
+const pkg = require('./package.json');
+const browser = browserSync.create();
 const paths = {
 	src: {
-		entry: "./src/js/index.js",
-		js: "./src/js/**/*.js",
-		scss: "./src/scss/**/*.scss",
-		html: "./src/html/**/*.html"
+		entry: './src/js/index.js',
+		js: './src/js/**/*.js',
+		scss: './src/scss/**/*.scss',
+		html: './src/html/**/*.html'
 	},
 	build: {
-		dir: "./build/",
-		js: "./build/*.js"
+		dir: './build/',
+		js: './build/*.js',
+		jsBundleName: 'app.js',
+		cssBundleName: 'app.css',
+		sourcemaps: './maps',
 	},
-	sourcemaps: "./maps"
 };
-
-const pkg = readJSON('./package.json');
-const browser = browserSync.create();
-const jsBundle = "./app.js";
-const cssBundle = "./app.css";
+const env = {
+	PROD: 'production',
+	DEV: 'development',
+	get isProd() { return process.env.NODE_ENV === this.PROD; },
+	get isDev() { return process.env.NODE_ENV === this.DEV; }
+}
+if (process.env.NODE_ENV === undefined) {
+	process.env.NODE_ENV === env.DEV;
+}
 
 //////////////////////////////////////////////////////////////
 // TASKS
 //////////////////////////////////////////////////////////////
 
-gulp.task("js", function () {
-	const b = watchify(
-		browserify({
-			entries: paths.src.entry,
-			debug: true,
-			transform: [ babelify.configure({ presets: [ "env" ]})]
-		})
-	);
+function bundle (entryFile, bundleName) {
+	const debug = env.isDev;
+	const opts = {
+		debug,
+		entries: entryFile,
+		transform: ['babelify']
+	};
+	// only minify for prod
+	if (!debug) { opts.plugin = ['tinyify']; }
 
-	function bundle () {
-		return b.bundle().on("error", gutil.log.bind(gutil, "Browserify Error"))
-			.pipe(source(jsBundle))
+	let b;
+	// only use watchify for debugging
+	if (debug) {
+		// extend with watchify args for caching
+		Object.keys(watchify.args).forEach(key => opts[key] = watchify.args[key]);
+		b = watchify(browserify(opts));
+	} else {
+		b = browserify(opts);
+	}
+
+	function doBundle () {
+		return b.bundle().on('error', gutil.log)
+			.pipe(source(bundleName || entryFile))
 			.pipe(buffer())
-			.pipe(sourcemaps.init({ loadMaps: true }))
-			.pipe(uglify()).on("error", gutil.log)
-			.pipe(sourcemaps.write(paths.sourcemaps))
+			// only use sourcemaps for dev builds
+			.pipe(debug ? sourcemaps.init({ loadMaps: true }) : gutil.noop())
+			.pipe(debug ? sourcemaps.write(paths.build.sourcemaps) : gutil.noop())
 			.pipe(gulp.dest(paths.build.dir));
 	}
 
-	b.on("update", bundle);
-	b.on("log", gutil.log);
-	return bundle();
-});
+	b.on('update', doBundle);
+	b.on('log', gutil.log);
 
-gulp.task("css", function () {
-	const outputStyle = "compressed";
-	return gulp.src(paths.src.scss)
-	  .pipe(sourcemaps.init())
-	  .pipe(sass({ outputStyle }).on("error", sass.logError))
-		.pipe(concatCSS(cssBundle))
-	  .pipe(sourcemaps.write(paths.sourcemaps))
-	  .pipe(gulp.dest(paths.build.dir));
-});
+	return doBundle();
+}
 
-gulp.task("html", function () {
-	const templates = {
-		title: pkg.name,
-		jsBundle, cssBundle
-	};
-	return gulp.src(paths.src.html)
-		.pipe(template(templates))
-		.pipe(rename("index.html"))
-		.pipe(gulp.dest(paths.build.dir));
-});
+gulp.task('js', () => bundle(paths.src.entry, paths.build.jsBundleName));
 
-gulp.task("reload", function (done) {
+gulp.task('css', () =>
+	gulp.src(paths.src.scss)
+		.pipe(env.isDev ? sourcemaps.init() : gutil.noop())
+		.pipe(sass({ importer: sassModuleImporter() }).on('error', sass.logError))
+		.pipe(autoprefixer())
+		.pipe(env.isProd ? cleanCSS() : gutil.noop())
+		.pipe(rename(paths.build.cssBundleName))
+		.pipe(env.isDev ? sourcemaps.write(paths.build.sourcemaps) : gutil.noop())
+		.pipe(gulp.dest(paths.build.dir))
+);
+
+gulp.task('html', () =>
+	gulp.src(paths.src.html)
+		.pipe(template({
+			title: pkg.name,
+			jsBundleName: `./${paths.build.jsBundleName}`,
+			cssBundleName: `./${paths.build.cssBundleName}`
+		}))
+		.pipe(rename('index.html'))
+		.pipe(gulp.dest(paths.build.dir))
+);
+
+gulp.task('reload', cb => {
 	browser.reload();
-	done();
+	cb();
 });
 
-gulp.task("watch", function () {
-	watch(paths.build.js, gulp.series("reload"));
-	watch(paths.src.scss, gulp.series("css", "reload"));
-	watch(paths.src.html, gulp.series("html", "reload"));
+gulp.task('watch', () => {
+	watch(paths.build.js, gulp.series('reload'));
+	watch(paths.src.scss, gulp.series('css', 'reload'));
+	watch(paths.src.html, gulp.series('html', 'reload'));
 });
 
-gulp.task("serve", function () {
-	browser.init({ server: { baseDir: paths.build.dir } });
+gulp.task('serve', () => {
+	browser.init({
+		host: 'localhost',
+		port: 3000,
+		server: paths.build.dir,
+		ghostMode: false,
+		logLevel: 'info',
+		logPrefix: pkg.name
+	});
 });
 
-gulp.task("clean", function () {
-	return del([`${paths.build.dir}*`], { force: true });
-});
+gulp.task('clean', () => del([`${paths.build.dir}*`], { force: true }));
 
-gulp.task("compile", gulp.parallel("clean", "js", "css", "html"));
-gulp.task("build", gulp.series(
-	"compile",
-	function exit () { process.exit(0); }
-));
-gulp.task("dev", gulp.series(
-	"compile",
-	gulp.parallel("serve", "watch")
-));
+gulp.task('build',
+	gulp.parallel(
+		'clean',
+		'js',
+		'css',
+		'html'
+	)
+);
+
+gulp.task('default',
+	gulp.series(
+		'build',
+		gulp.parallel(
+			'serve',
+			'watch'
+		)
+	)
+);
